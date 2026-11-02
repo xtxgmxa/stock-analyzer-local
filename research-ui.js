@@ -6,11 +6,17 @@ function clearAnalysis(message){
  snapshot=null;availablePublished=null;$('snapshotDownload').disabled=true;$('researchResult').replaceChildren();
  $('out').textContent='';$('aiCards').textContent=message;
  noData(message);$('dataState').textContent=message;
+ $('stockIdentity').hidden=true;$('stockIdentity').textContent='';
  $('researchStatus').textContent=message;
 }
 function showDataState(){
  if(!last)return;
  const bar=last.data[last.data.length-1];
+ const identity=$('stockIdentity'),symbol=last.sym,generation=dataGeneration;
+ identity.hidden=false;identity.textContent=symbol+'｜正在確認股票名稱…';
+ BrowserQuotes.stockName(symbol).then(name=>{
+  if(generation===dataGeneration&&last?.sym===symbol)identity.textContent=(name||'股票名稱暫未提供')+'（'+symbol+'）';
+ }).catch(()=>{if(generation===dataGeneration&&last?.sym===symbol)identity.textContent=symbol+'｜名稱暫時讀取失敗';});
  $('dataState').innerHTML=`<b>${esc(last.sym)}｜最新已載入收盤價 ${Number(bar.c).toLocaleString('zh-TW')} 元</b><p style="margin:4px 0">資料日期：${esc(bar.d)} 收盤｜來源：${esc(sourceLabel(srcName))}</p><span class="sub">這是收盤後的日 K，不是盤中即時價格。所有圖表與分析均使用這份已載入資料。</span>`;
  $('aiCards').textContent='真實行情已載入。按「產生 AI 判讀」即可閱讀中文摘要與風險。';
 }

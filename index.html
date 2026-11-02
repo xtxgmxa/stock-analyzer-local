@@ -50,6 +50,7 @@ button:disabled{opacity:.5;cursor:default}
 <button id="th" aria-label="切換深淺色">深／淺</button>
 </div>
 <p class="sub">輸入股票代號後會自動抓取真實日 K、顯示圖表及內建分析；手機不需安裝或登入。資料為收盤日 K，非盤中即時報價。</p>
+<h2 id="stockIdentity" hidden aria-live="polite" style="font-size:26px;font-weight:800;margin:12px 0;overflow-wrap:anywhere"></h2>
 <div class="box" id="dataState" role="status" aria-live="polite">尚未取得行情。取得真實資料後才開放分析。</div>
 <div class="box"><h2>1～5 日機率預判與樣本外回測</h2><div class="bar"><select id="researchProvider" aria-label="研究資料來源"><option value="auto" selected>自動讀取外部行情（免安裝）</option><option value="twse">TWSE 官方完整資料（本機進階）</option><option value="yahoo">Yahoo 完整資料（本機進階）</option><option value="csv">完整 OHLCV CSV</option></select><button class="p" id="researchRun">進階：重新訓練與回測</button><button id="snapshotDownload" disabled>下載完整快照 JSON</button><button id="historyLoad">讀取歷史快照</button></div><details><summary>進階：匯入完整研究 CSV</summary><label for="researchCsv">研究 CSV：date,open,high,low,close,volume，至少 650 個交易日；成交量單位為股。</label><textarea id="researchCsv" placeholder="date,open,high,low,close,volume"></textarea></details><p id="researchStatus" role="status" aria-live="polite">收盤後產生訊號，次一交易日開盤進場。上漲機率為未扣成本的方向機率。</p><div id="researchResult"></div><div id="researchHistory"></div></div>
 
@@ -179,8 +180,8 @@ catch(e){$("out").textContent="呼叫失敗："+e.message}$("ai").disabled=false
 $("cp").onclick=()=>{if(!last)return;navigator.clipboard&&navigator.clipboard.writeText(prompt()).then(()=>{$("cp").textContent="已複製"},()=>{$("out").textContent=prompt()})};
 run();
 </script>
-<script src="browser-quotes.js?v=20261102-v05"></script>
-<script src="readable-ai.js?v=20261102-v05"></script>
-<script src="research-ui.js?v=20261102-v05"></script>
+<script src="browser-quotes.js?v=20261102-v051"></script>
+<script src="readable-ai.js?v=20261102-v051"></script>
+<script src="research-ui.js?v=20261102-v051"></script>
 </body>
 </html>
