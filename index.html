@@ -53,6 +53,14 @@ button:disabled{opacity:.5;cursor:default}
 <p class="sub" id="costState" role="status" aria-live="polite">持有成本可輸入小數；填入後自動更新成本損益。它不會取代真實收盤價。</p>
 <h2 id="stockIdentity" hidden aria-live="polite" style="font-size:26px;font-weight:800;margin:12px 0;overflow-wrap:anywhere"></h2>
 <div class="box" id="dataState" role="status" aria-live="polite">尚未取得行情。取得真實資料後才開放分析。</div>
+<section class="box" aria-labelledby="externalTitle">
+<h2 id="externalTitle">帶去你自己的 AI，深入分析</h2>
+<p class="sub">手機、其他電腦都可用。先查詢行情，再複製完整內容，貼到你常用的 AI；請選擇有網路搜尋能力的模式，才能核對新聞。本站不會替你送出。</p>
+<label style="font-size:14px"><input id="includePromptCost" type="checkbox" checked style="min-height:0"> 包含我填的持有成本與損益（可取消）</label>
+<div class="bar" style="margin-top:12px"><button class="p" id="cp" disabled>複製完整 AI 分析提示詞</button><button id="promptPreview" disabled>預覽／手動複製</button><button id="promptDownload" disabled>下載提示詞文字檔</button></div>
+<p id="promptStatus" class="sub" role="status" aria-live="polite">內容包含本次結論、真實行情、指標定義、模型限制、新聞查核要求及報告格式。請先載入行情。</p>
+<details id="promptDetails"><summary>查看完整提示詞</summary><label for="externalPromptText">長按或全選以下內容，再貼給外部 AI</label><textarea id="externalPromptText" readonly style="min-height:280px;font-size:14px" placeholder="查詢完成後，按預覽或複製，即可產生完整內容。"></textarea></details>
+</section>
 <div class="box"><h2>1～5 日機率預判與樣本外回測</h2><div class="bar"><select id="researchProvider" aria-label="研究資料來源"><option value="auto" selected>自動讀取外部行情（免安裝）</option><option value="twse">TWSE 官方完整資料（本機進階）</option><option value="yahoo">Yahoo 完整資料（本機進階）</option><option value="csv">完整 OHLCV CSV</option></select><button class="p" id="researchRun">進階：重新訓練與回測</button><button id="snapshotDownload" disabled>下載完整快照 JSON</button><button id="historyLoad">讀取歷史快照</button></div><details><summary>進階：匯入完整研究 CSV</summary><label for="researchCsv">研究 CSV：date,open,high,low,close,volume，至少 650 個交易日；成交量單位為股。</label><textarea id="researchCsv" placeholder="date,open,high,low,close,volume"></textarea></details><p id="researchStatus" role="status" aria-live="polite">收盤後產生訊號，次一交易日開盤進場。上漲機率為未扣成本的方向機率。</p><div id="researchResult"></div><div id="researchHistory"></div></div>
 
 
@@ -79,7 +87,7 @@ button:disabled{opacity:.5;cursor:default}
 <input id="md" placeholder="模型名稱（選填，留空用帳號預設）" aria-label="模型名稱" style="flex:1;min-width:180px">
 </div>
 <p class="sub" id="st">內建摘要免登入；外部 AI 為選用功能。</p>
-<div class="bar" style="margin-top:10px"><button class="p" id="ai">產生 AI 判讀</button><button id="cp">複製提示詞</button></div>
+<div class="bar" style="margin-top:10px"><button class="p" id="ai">產生 AI 判讀</button></div>
 <div id="aiCards" aria-live="polite"><p>取得行情後，按「產生 AI 判讀」，即可閱讀中文摘要與風險。</p></div><details><summary>查看原始回覆（進階）</summary><pre id="out">按「產生 AI 判讀」。選內建引擎會直接輸出文字摘要；選外部模型時，會產生結構化提示詞，可貼進 Codex 或 Cursor，或交由後端代理呼叫。</pre></details>
 </div>
 <p class="note">本工具僅分析真實來源日 K。資料更新失敗時停止分析，不以模擬資料替代。僅供研究，不保證報酬。</p>
@@ -181,8 +189,9 @@ catch(e){$("out").textContent="呼叫失敗："+e.message}$("ai").disabled=false
 $("cp").onclick=()=>{if(!last)return;navigator.clipboard&&navigator.clipboard.writeText(prompt()).then(()=>{$("cp").textContent="已複製"},()=>{$("out").textContent=prompt()})};
 run();
 </script>
-<script src="browser-quotes.js?v=20261102-v052"></script>
-<script src="readable-ai.js?v=20261102-v052"></script>
-<script src="research-ui.js?v=20261102-v052"></script>
+<script src="browser-quotes.js?v=20261102-v06"></script>
+<script src="readable-ai.js?v=20261102-v06"></script>
+<script src="external-prompt.js?v=20261102-v06"></script>
+<script src="research-ui.js?v=20261102-v06"></script>
 </body>
 </html>

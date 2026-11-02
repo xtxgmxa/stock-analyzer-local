@@ -65,7 +65,7 @@ const server=http.createServer(async(req,res)=>{
   if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Private-Network','true')}
   if(req.method==='OPTIONS'){res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type');res.writeHead(204);return res.end()}
   const u=new URL(req.url,'http://localhost');
-  const assets={'/':'index.html','/index.html':'index.html','/research-ui.js':'research-ui.js','/readable-ai.js':'readable-ai.js','/browser-quotes.js':'browser-quotes.js'};
+  const assets={'/':'index.html','/index.html':'index.html','/research-ui.js':'research-ui.js','/readable-ai.js':'readable-ai.js','/browser-quotes.js':'browser-quotes.js','/external-prompt.js':'external-prompt.js'};
   if(assets[u.pathname]&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(ROOT,assets[u.pathname]),'utf8'),u.pathname.endsWith('.js')?'application/javascript':'text/html');
   const publicFeed=u.pathname.match(/^\/public-quotes\/(2330|2317|2454|1216|validation-summary)\.json$/);
   if(publicFeed&&req.method==='GET'){

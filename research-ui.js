@@ -1,6 +1,7 @@
 /* Uses the existing UI; model results are kept separate from heuristic prices. */
 let snapshot=null,availablePublished=null;
 let dataGeneration=0,quoteBusy=false,quoteController=null,inputTimer=null;
+const stockNames=new Map();
 function sourceLabel(source){return source.startsWith('TWSE')?'臺灣證券交易所（官方日 K）':source.startsWith('FinMind')?'FinMind（彙整交易所日 K，本次由網頁直接讀取）':source.startsWith('Yahoo')?'Yahoo Finance（非官方日 K）':'自行匯入 CSV（來源需自行核對）'}
 function clearAnalysis(message){
  snapshot=null;availablePublished=null;$('snapshotDownload').disabled=true;$('researchResult').replaceChildren();
@@ -8,6 +9,7 @@ function clearAnalysis(message){
  noData(message);$('dataState').textContent=message;
  $('stockIdentity').hidden=true;$('stockIdentity').textContent='';
  updateCostState();
+ refreshExternalExport();
  $('researchStatus').textContent=message;
 }
 function showDataState(){
@@ -16,10 +18,11 @@ function showDataState(){
  const identity=$('stockIdentity'),symbol=last.sym,generation=dataGeneration;
  identity.hidden=false;identity.textContent=symbol+'｜正在確認股票名稱…';
  BrowserQuotes.stockName(symbol).then(name=>{
-  if(generation===dataGeneration&&last?.sym===symbol)identity.textContent=(name||'股票名稱暫未提供')+'（'+symbol+'）';
+  if(generation===dataGeneration&&last?.sym===symbol){stockNames.set(symbol,name);identity.textContent=(name||'股票名稱暫未提供')+'（'+symbol+'）';if($('promptDetails').open)$('externalPromptText').value=externalBrief()}
  }).catch(()=>{if(generation===dataGeneration&&last?.sym===symbol)identity.textContent=symbol+'｜名稱暫時讀取失敗';});
  $('dataState').innerHTML=`<b>${esc(last.sym)}｜最新已載入收盤價 ${Number(bar.c).toLocaleString('zh-TW')} 元</b><p style="margin:4px 0">資料日期：${esc(bar.d)} 收盤｜來源：${esc(sourceLabel(srcName))}</p><span class="sub">這是收盤後的日 K，不是盤中即時價格。所有圖表與分析均使用這份已載入資料。</span>`;
  $('aiCards').textContent='真實行情已載入。按「產生 AI 判讀」即可閱讀中文摘要與風險。';
+ refreshExternalExport();
 }
 async function loadRealQuote(publicOnly=false){
  clearTimeout(inputTimer);quoteController?.abort();quoteController=new AbortController();
@@ -89,6 +92,7 @@ function readableSnapshot(s){
 }
 function showSnapshot(s){
  if(s.synthetic)throw new Error('正式介面不使用模擬資料');
+ $('out').textContent='';
  snapshot=s;$('snapshotDownload').disabled=false;$('snapshotDownload').textContent=s.publicSummary?'下載公開分析摘要':'下載完整快照 JSON';
  if(s.recentBars){custom=s.recentBars;custom.symbol=s.symbol;srcName=s.source;$('sym').value=s.symbol;run();showDataState()}
  const format=x=>Number(x).toFixed(3);
@@ -100,6 +104,7 @@ function showSnapshot(s){
  <p class="sub">快照 ${esc(s.runId.slice(0,16))}｜資料版本 ${esc(s.datasetId.slice(0,16))}｜模型 ${esc(s.version)}</p>`;
  $('researchResult').innerHTML=readableSnapshot(s)+'<details><summary>進階：完整回測指標與方法</summary>'+technical+'</details>';
  $('researchStatus').textContent=s.publicSummary?'已顯示已發布模型摘要；請核對資料日期與版本，非盤中即時預測。':'完成。完整快照含每折時間邊界、樣本外預測、兩模型指標、規則策略與逐日資產曲線。';
+ refreshExternalExport();
 }
 $('bridge').value=localStorage.getItem('stockBridge')||'http://localhost:5177';
 $('connect').onclick=async()=>{
@@ -152,6 +157,7 @@ $('ai').onclick=async()=>{
   const date=last.data[last.data.length-1].d;
   $('aiCards').innerHTML=`<p class="sub">分析對象：${esc(last.sym)}｜資料截至 ${esc(date)} 收盤｜${esc(sourceLabel(srcName))}</p>`+ReadableAI.cards(text);
   $('out').textContent=text;
+  if($('promptDetails').open)$('externalPromptText').value=externalBrief();
  }catch(e){if(generation===dataGeneration)$('aiCards').textContent='無法完成判讀：'+e.message}
  finally{$('ai').disabled=!last}
 };
@@ -160,6 +166,41 @@ function invalidateQuote(message){
  $('go').disabled=false;$('live').disabled=false;$('researchRun').disabled=false;clearAnalysis(message);
 }
 function validCost(){return $('cost').value!==''&&$('cost').validity.valid&&Number.isFinite(Number($('cost').value))&&Number($('cost').value)>0}
+function externalBrief(){
+ return ExternalPrompt.build({last,snapshot,source:srcName,name:stockNames.get(last?.sym)||null,
+  cost:$('includePromptCost').checked&&validCost()?Number($('cost').value):null,
+  conclusion:$('includePromptCost').checked||!validCost()?$('out').textContent:null});
+}
+function refreshExternalExport(){
+ for(const id of ['cp','promptPreview','promptDownload'])$(id).disabled=!last;
+ $('cp').textContent='複製完整 AI 分析提示詞';
+ $('externalPromptText').value=last&&$('promptDetails').open?externalBrief():'';
+ $('promptStatus').textContent=last?'已可匯出本次結果。複製後貼給外部 AI；它需要自行上網核對新聞。':'請先取得真實行情，才能匯出本次分析。';
+}
+function previewExternalBrief(){
+ if(!last)return;
+ $('externalPromptText').value=externalBrief();$('promptDetails').open=true;
+ $('promptStatus').textContent='已產生完整提示詞，可在下方全選／長按複製，或下載文字檔。';
+}
+$('promptPreview').onclick=previewExternalBrief;
+$('promptDetails').addEventListener('toggle',()=>{if($('promptDetails').open&&last)$('externalPromptText').value=externalBrief()});
+$('includePromptCost').addEventListener('change',refreshExternalExport);
+$('cp').onclick=async()=>{
+ if(!last)return;
+ const generation=dataGeneration,text=externalBrief();$('externalPromptText').value=text;
+ try{
+  if(!navigator.clipboard?.writeText)throw new Error('clipboard unavailable');
+  await navigator.clipboard.writeText(text);
+  if(generation!==dataGeneration)return;
+  $('cp').textContent='已複製完整內容';$('promptStatus').textContent=`已複製約 ${text.length.toLocaleString('zh-TW')} 字元。切換到外部 AI 貼上，選擇網路搜尋模式後送出。`;
+ }catch(e){if(generation===dataGeneration){previewExternalBrief();$('promptStatus').textContent='此瀏覽器未允許自動複製。請長按／全選下方完整內容複製，或按「下載提示詞文字檔」。'}}
+};
+$('promptDownload').onclick=()=>{
+ if(!last)return;
+ const text=externalBrief(),url=URL.createObjectURL(new Blob(['\uFEFF'+text],{type:'text/plain;charset=utf-8'}));
+ const a=document.createElement('a');a.href=url;a.download=`${last.sym}-${last.data.at(-1).d}-AI分析提示詞.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ $('promptStatus').textContent='已準備提示詞文字檔。可用其他 AI 開啟或上傳；手機也可先預覽並長按複製。';
+};
 function updateCostState(){
  const field=$('cost'),state=$('costState');
  if(field.validity.badInput||(field.value!==''&&!validCost())){state.textContent='持有成本請輸入大於 0 的有效價格，可含小數，例如 20.85；無效價格不納入損益。';return}

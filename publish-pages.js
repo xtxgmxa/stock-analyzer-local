@@ -7,7 +7,7 @@ run(path.join(root,'.venv',win?'Scripts/python.exe':'bin/python'),['-m','researc
 run(process.execPath,['build-pages.js']);
 const remote=run('git',['remote','get-url','origin']);
 fs.mkdirSync(target,{recursive:true});
-for(const name of ['index.html','research-ui.js','readable-ai.js','browser-quotes.js','.nojekyll'])fs.copyFileSync(path.join(root,'site',name),path.join(target,name));
+for(const name of ['index.html','research-ui.js','readable-ai.js','browser-quotes.js','external-prompt.js','.nojekyll'])fs.copyFileSync(path.join(root,'site',name),path.join(target,name));
 fs.cpSync(path.join(root,'site','public-quotes'),path.join(target,'public-quotes'),{recursive:true});
 if(!fs.existsSync(path.join(target,'.git'))){
  run('git',['init','-b','codex/pages'],target);
