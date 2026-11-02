@@ -57,11 +57,13 @@ $('connect').onclick=async()=>{
  const base=$('bridge').value.replace(/\/$/,'');
  if(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(base)){$('connection').textContent='請使用 http://localhost:連接埠 或 http://127.0.0.1:連接埠';return}
  localStorage.setItem('stockBridge',base);$('connection').textContent='偵測中…';
- try{const r=await apiFetch('/api/status');const s=await r.json();if(!r.ok||!s.accounts)throw new Error(s.error||'不相容的服務');srv=s;$('live').disabled=false;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6000);
+ try{const r=await apiFetch('/api/status',{signal:controller.signal});const s=await r.json();if(!r.ok||!s.accounts)throw new Error(s.error||'不相容的服務');srv=s;$('live').disabled=false;
   $('connection').textContent=`已連線｜研究環境：${s.research?'已就緒':'請執行 setup.bat'}｜Codex：${s.accounts.codex.message}｜Cursor：${s.accounts.cursor.message}`;
   $('st').textContent='使用這台電腦的 CLI 登入狀態。僅安裝桌面 App 不一定已登入 CLI。';
   if(!last&&!quoteBusy)await loadRealQuote();
  }catch(e){srv=null;$('st').textContent='尚未連接自己的 AI 帳號，可先使用內建摘要。';$('connection').textContent='尚未連接本機服務。可以先閱讀網站發布的 2330 官方日 K；自行訓練、其他股票與個人 AI 帳號功能，請先執行 start.bat 再連線。';if(!last&&!quoteBusy)await loadRealQuote(true)}
+ finally{clearTimeout(timer)}
 };
 $('researchRun').onclick=async()=>{
  if(!srv){$('researchStatus').textContent='自行訓練與回測需要本機服務，請先執行 start.bat 並連線。已載入的官方行情仍可閱讀。';return}
@@ -106,4 +108,6 @@ $('sym').addEventListener('input',()=>{dataGeneration++;clearAnalysis('股票代
 $('researchProvider').addEventListener('change',()=>{dataGeneration++;clearAnalysis('資料來源已變更，請重新取得資料後分析。')});
 const importCloseCsv=$('ld').onclick;
 $('ld').onclick=()=>{dataGeneration++;clearAnalysis('正在核對匯入資料…');importCloseCsv();if(last)showDataState()};
+// Public prices should never wait for an optional localhost connection.
+if(!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(location.origin))loadRealQuote(true);
 $('connect').click();
