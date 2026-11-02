@@ -8,6 +8,7 @@ const root='http://127.0.0.1:5188';
 test('serves page and JS with the correct content types',async()=>{
  const r=await fetch(root);assert.equal(r.status,200);assert.match(await r.text(),/researchRun/);
  const js=await fetch(root+'/research-ui.js');assert.match(js.headers.get('content-type'),/javascript/);
+ const direct=await fetch(root+'/browser-quotes.js');assert.equal(direct.status,200);assert.match(direct.headers.get('content-type'),/javascript/);
 });
 test('rejects other origins and host rebinding',async()=>{
  assert.equal((await fetch(root+'/api/status',{headers:{Origin:'https://evil.example'}})).status,403);
