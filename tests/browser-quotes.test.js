@@ -9,6 +9,7 @@ function response(symbol='2317'){
 }
 test('mobile lookup preserves leading zeros and limits requests to stock IDs',()=>{
  assert.equal(normalizedSymbol('0050.TW'),'0050');assert.equal(normalizedSymbol('6488.TWO'),'6488');
+ assert.equal(normalizedSymbol('00985a.tw'),'00985A');assert.equal(normalizedSymbol('00632R'),'00632R');
  for(const s of ['2330&token=bad','https://example.com','abc','23'])assert.throws(()=>normalizedSymbol(s));
 });
 test('Taipei close cutoff never includes an unfinished daily candle',()=>{
@@ -17,6 +18,7 @@ test('Taipei close cutoff never includes an unfinished daily candle',()=>{
  assert.equal(validateResponse(response(),'2317',now).asOf,'2026-11-02');
 });
 test('network response is mapped from actual OHLCV without manufactured bars',()=>{
+ assert.equal(validateResponse(response('00985A'),'00985A',now).symbol,'00985A');
  const q=validateResponse(response(),'2317',now);
  assert.equal(q.symbol,'2317');assert.equal(q.bars.length,90);assert.deepEqual(q.bars.at(-1),{d:'2026-11-02',o:100,h:105,l:99,c:102,v:1000000});
  assert.equal(q.analysisMode,'technical_only');assert.equal(q.analysis,undefined);

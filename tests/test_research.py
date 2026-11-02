@@ -14,6 +14,12 @@ from research.features import features, targets, rule, gate, join_events_asof
 
 
 class ResearchTests(unittest.TestCase):
+    def test_etf_symbol_keeps_letter_suffix(self):
+        self.assertEqual(data.validate_symbol('00985A'), '00985A')
+        self.assertEqual(data.validate_symbol('00632R.TW'), '00632R.TW')
+        with self.assertRaises(ValueError):
+            data.validate_symbol('00985A&token=bad')
+
     @classmethod
     def setUpClass(cls):
         cls.df = demo()

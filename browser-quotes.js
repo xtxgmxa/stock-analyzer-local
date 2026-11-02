@@ -13,7 +13,7 @@
    const names=new Map();
    for(const row of json.data){
     const id=String(row.stock_id),name=String(row.stock_name||'').trim(),date=String(row.date||'');
-    if(/^\d{4,6}$/.test(id)&&name&&(!names.has(id)||date>names.get(id).date))names.set(id,{name,date});
+    if(/^(?:\d{4,6}|\d{4,5}[A-Z])$/.test(id)&&name&&(!names.has(id)||date>names.get(id).date))names.set(id,{name,date});
    }
    return names;
   })().catch(error=>{namesPromise=null;throw error});
@@ -21,7 +21,7 @@
  }
  function normalizedSymbol(value){
   const symbol=String(value).trim().toUpperCase().replace(/\.(TW|TWO)$/,'');
-  if(!/^\d{4,6}$/.test(symbol))throw new Error('請輸入 4～6 位台股代號，例如 2330 或 2317');
+  if(!/^(?:\d{4,6}|\d{4,5}[A-Z])$/.test(symbol))throw new Error('請輸入台股／ETF 代號，例如 2330、0050 或 00985A');
   return symbol;
  }
  function dates(now=new Date()){
@@ -49,7 +49,7 @@
    bars.push({d:day,o,h,l,c,v});
   }
   bars.sort((a,b)=>a.d.localeCompare(b.d));
-  if(bars.length<61)throw new Error('找不到足夠行情，請確認代號；至少需要 61 個有效交易日');
+  if(bars.length<61)throw new Error(bars.length?`已取得 ${symbol} 的 ${bars.length} 個交易日；技術分析至少需要 61 日，目前暫不分析。新上市標的請累積足夠資料後再試。`:`資料來源未回傳 ${symbol} 的行情；請確認代號，或稍後再試。`);
   if((Date.parse(range.end)-Date.parse(bars.at(-1).d))/86400000>7)throw new Error('最新行情超過 7 天，請核對停牌或資料來源');
   if(bars.at(-1).v===0)throw new Error('最新行情沒有成交量，暫停技術分析');
   if(bars.some((r,i)=>i&&Math.abs(r.c/bars[i-1].c-1)>.35))throw new Error('期間出現疑似拆股或大幅跳動，需完整事件核對後才能分析');

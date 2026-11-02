@@ -7,6 +7,7 @@ function clearAnalysis(message){
  $('out').textContent='';$('aiCards').textContent=message;
  noData(message);$('dataState').textContent=message;
  $('stockIdentity').hidden=true;$('stockIdentity').textContent='';
+ updateCostState();
  $('researchStatus').textContent=message;
 }
 function showDataState(){
@@ -27,7 +28,7 @@ async function loadRealQuote(publicOnly=false){
  const symbol=$('sym').value.trim().toUpperCase(),provider=$('researchProvider').value;
  const generation=++dataGeneration;
  clearAnalysis('正在從外部網路取得真實行情，完成前暫停分析…');
- if(!/^\d{4,6}(?:\.TW|\.TWO)?$/.test(symbol)){clearAnalysis('請輸入有效的台股代號');return}
+ if(!/^(?:\d{4,6}|\d{4,5}[A-Z])(?:\.TW|\.TWO)?$/.test(symbol)){clearAnalysis('請輸入有效的台股代號');return}
  if(provider==='csv'){clearAnalysis('已選擇 CSV。請匯入你確認來源的真實資料後再分析。');return}
  quoteBusy=true;$('go').disabled=true;$('live').disabled=true;$('researchRun').disabled=true;
  try{
@@ -54,6 +55,7 @@ async function loadRealQuote(publicOnly=false){
   const age=(Date.now()-Date.parse(j.asOf+'T16:00:00+08:00'))/86400000;
   if(age>7)throw new Error('最新行情已超過 7 天，請核對停牌或來源更新');
   custom=j.bars;custom.symbol=symbol;srcName=j.source;run();showDataState();
+  updateCostState();
   if(j.analysis){showSnapshot(j.analysis);$('researchStatus').textContent='本次行情與已發布模型逐筆一致，已顯示完整研究。'}
   else{
    $('researchStatus').textContent='已直接取得近一年真實日 K，完成技術觀察；這不是經校正的機率模型。';
@@ -128,6 +130,8 @@ const legacyPrompt=prompt;
 prompt=function(){if(!snapshot)return legacyPrompt();return '你是股票研究助理，只解讀以下資料，不執行工具、不讀檔、不修改電腦。機率是統計模型輸出，勿改寫或保證報酬。指出校正前後 Brier、基準比較與失效風險，不提供保證式買賣指令。以繁體中文回答。資料：'+JSON.stringify({symbol:snapshot.symbol,asOf:snapshot.asOf,source:snapshot.source,synthetic:snapshot.synthetic,rule:snapshot.rule,risk:snapshot.risk,warnings:snapshot.warnings,horizons:snapshot.horizons.map(h=>({days:h.days,probability:h.upProbability,riskReasons:h.riskReasons,calibratedBrier:h.evaluation.probability.brier,rawBrier:h.evaluation.rawEnsemble.brier,priorBrier:h.evaluation.prior.brier}))})};
 const snapshotPrompt=prompt;
 prompt=function(){return snapshotPrompt()+'\n大盤／法人與歷史相近訊號（無資料即 null，不得自行補造）：'+JSON.stringify(snapshot?{context:snapshot.context,similar:snapshot.horizons.map(h=>({days:h.days,similar:h.similarSignals})),forward:snapshot.forwardLedger?.byHorizon}:null)+'\n以下為同一來源實際載入的最近 60 個交易日 OHLCV（d 日期、o 開盤、h 最高、l 最低、c 收盤、v 成交股數；不含新聞或盤中五檔）：'+JSON.stringify(last.data.slice(-60))+'\n請以一般人看得懂的繁體中文，回傳 JSON：{"action":"目前判斷","summary":"白話摘要","entry":null,"stop":null,"target":null,"trim":null,"risks":["主要風險"]}。只能使用輸入中提供的價格，沒有的項目填 null，不得自行估造。'};
+const priceContextPrompt=prompt;
+prompt=function(){return priceContextPrompt()+'\n使用者持有成本（非行情，不得當成最新報價）：'+JSON.stringify(validCost()?{cost:Number($('cost').value),unrealizedReturnBeforeFees:last.r.px/Number($('cost').value)-1}:null)};
 $('ai').onclick=async()=>{
  if(!last){$('aiCards').textContent='請先取得真實行情，再進行分析。';return}
  const generation=dataGeneration,provider=$('pv').value;
@@ -136,7 +140,7 @@ $('ai').onclick=async()=>{
   let text;
   if(provider==='rule'){
    const r=last.r;
-   const summary=snapshot?snapshot.horizons.map(h=>`${h.days} 個交易日的上漲機率為 ${pct(h.upProbability)}，${h.action==='observe'?'目前先觀察':'列為研究候選'}。`).join('\n'):`目前收盤價為 ${r.px.toLocaleString('zh-TW')} 元。${r.why.slice(0,2).join('。')}。`;
+   const summary=(snapshot?snapshot.horizons.map(h=>`${h.days} 個交易日的上漲機率為 ${pct(h.upProbability)}，${h.action==='observe'?'目前先觀察':'列為研究候選'}。`).join('\n'):`目前收盤價為 ${r.px.toLocaleString('zh-TW')} 元。${r.why.slice(0,2).join('。')}。`)+(validCost()?`\n持有成本 ${Number($('cost').value).toLocaleString('zh-TW')} 元，相對已載入收盤價的未扣費用損益為 ${((r.px/Number($('cost').value)-1)*100).toFixed(2)}%。`:'');
    text=JSON.stringify({action:snapshot?(snapshot.horizons.some(h=>h.action==='candidate')?'列入觀察名單':'先觀察，等待更明確訊號'):r.act,summary,entry:snapshot?null:r.entry,stop:snapshot?snapshot.risk.referenceStop:r.stop,target:snapshot?null:r.tgt,trim:snapshot?null:r.trim,
     risks:snapshot?[...new Set(snapshot.horizons.flatMap(h=>h.riskReasons))]:['這是技術規則觀察，尚未含新聞、基本面與整體市場變化。','參考價位來自簡單技術規則，不代表保證可成交或獲利。']});
   }else{
@@ -155,7 +159,20 @@ function invalidateQuote(message){
  clearTimeout(inputTimer);quoteController?.abort();dataGeneration++;quoteBusy=false;
  $('go').disabled=false;$('live').disabled=false;$('researchRun').disabled=false;clearAnalysis(message);
 }
-$('sym').addEventListener('input',()=>{invalidateQuote('代號已變更，輸入完成後將自動讀取真實行情…');if(/^\d{4,6}(?:\.TW|\.TWO)?$/.test($('sym').value.trim().toUpperCase())&&$('researchProvider').value==='auto')inputTimer=setTimeout(()=>loadRealQuote(),1100)});
+function validCost(){return $('cost').value!==''&&$('cost').validity.valid&&Number.isFinite(Number($('cost').value))&&Number($('cost').value)>0}
+function updateCostState(){
+ const field=$('cost'),state=$('costState');
+ if(field.validity.badInput||(field.value!==''&&!validCost())){state.textContent='持有成本請輸入大於 0 的有效價格，可含小數，例如 20.85；無效價格不納入損益。';return}
+ if(!field.value){state.textContent='持有成本可輸入小數；填入後自動更新成本損益。它不會取代真實收盤價。';return}
+ state.textContent=last?`已按成本 ${Number(field.value).toLocaleString('zh-TW')} 元更新：相對收盤價 ${last.r.px.toLocaleString('zh-TW')} 元，未扣費用損益 ${((last.r.px/Number(field.value)-1)*100).toFixed(2)}%。`:'成本已填入，請先取得此股票的真實行情；單一價格不足以判斷趨勢。';
+}
+function refreshPersonalInputs(){
+ if(last){dataGeneration++;run();showDataState();if($('pv').value==='rule')$('ai').onclick();else{$('aiCards').textContent='成本或風險設定已更新，請重新產生個人 AI 判讀。';$('out').textContent=''}}
+ updateCostState();
+}
+$('cost').addEventListener('input',refreshPersonalInputs);
+$('rk').onchange=refreshPersonalInputs;
+$('sym').addEventListener('input',()=>{invalidateQuote('代號已變更，輸入完成後將自動讀取真實行情…');if(/^(?:\d{4,6}|\d{4,5}[A-Z])(?:\.TW|\.TWO)?$/.test($('sym').value.trim().toUpperCase())&&$('researchProvider').value==='auto')inputTimer=setTimeout(()=>loadRealQuote(),1100)});
 $('researchProvider').addEventListener('change',()=>{invalidateQuote('資料來源已變更，請重新取得資料後分析。');if($('researchProvider').value==='auto')loadRealQuote()});
 const importCloseCsv=$('ld').onclick;
 $('ld').onclick=()=>{dataGeneration++;clearAnalysis('正在核對匯入資料…');importCloseCsv();if(last)showDataState()};

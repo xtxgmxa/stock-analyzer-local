@@ -78,7 +78,7 @@ const server=http.createServer(async(req,res)=>{
    return send(res,200,{codex:codex.installed,cursor:cursor.installed,accounts:{codex,cursor},research:fs.existsSync(PYTHON),version:'0.4.0'});
   }
   if(u.pathname==='/api/quote'&&req.method==='GET'){
-   const s=(u.searchParams.get('symbol')||'').toUpperCase();if(!/^\d{4,6}(?:\.TW|\.TWO)?$/.test(s))return send(res,400,{error:'僅接受台股代號'});
+   const s=(u.searchParams.get('symbol')||'').toUpperCase();if(!/^(?:\d{4,6}|\d{4,5}[A-Z])(?:\.TW|\.TWO)?$/.test(s))return send(res,400,{error:'僅接受台股代號'});
    const provider=u.searchParams.get('provider')||'twse';
    if(!['twse','yahoo'].includes(provider))return send(res,400,{error:'請選擇真實行情來源'});
    const r=await research({action:'quote',symbol:s,provider});return send(res,r.ok?200:422,r.ok?r.result:r);

@@ -41,15 +41,16 @@ button:disabled{opacity:.5;cursor:default}
 <p class="sub">輸入代號查真實日 K｜手機免安裝｜完整機率模型與個人 AI 為選用功能</p>
 <details class="box"><summary>進階：連接自己的 AI 帳號與完整訓練（選用）</summary><h2>連接自己的電腦</h2><p class="sub">先執行 setup.bat，再執行 start.bat。本機服務使用你已登入的 CLI 帳號；網站不接收登入憑證。</p><div class="bar"><input id="bridge" aria-label="本機服務網址" value="http://localhost:5177" style="flex:1"><button id="connect">偵測連線與帳號</button></div><p id="connection" role="status" aria-live="polite">此功能為選用，抓行情與基本分析不需連線。</p></details>
 <div class="bar">
-<input id="sym" value="2330" aria-label="股票代號" inputmode="numeric" autocomplete="off" placeholder="輸入台股代號，例如 2330" style="width:230px" list="pre">
-<datalist id="pre"><option value="2330"><option value="0050"><option value="2317"><option value="2454"><option value="1216"><option value="6488"></datalist>
+<input id="sym" value="2330" aria-label="股票代號" inputmode="text" autocapitalize="characters" autocomplete="off" placeholder="輸入台股代號，例如 2330" style="width:230px" list="pre">
+<datalist id="pre"><option value="2330"><option value="0050"><option value="2317"><option value="2454"><option value="1216"><option value="6488"><option value="00985A"></datalist>
 <select id="rk" aria-label="風險偏好"><option value="1">保守</option><option value="1.5" selected>穩健</option><option value="2.2">積極</option></select>
-<input id="cost" type="number" placeholder="持有成本（選填）" aria-label="持有成本" style="width:150px">
+<input id="cost" type="number" min="0.0001" step="any" placeholder="持有成本（選填）" aria-label="持有成本" style="width:150px">
 <button class="p" id="go">查詢並分析</button>
 <button id="live" hidden>重新讀取行情</button>
 <button id="th" aria-label="切換深淺色">深／淺</button>
 </div>
 <p class="sub">輸入股票代號後會自動抓取真實日 K、顯示圖表及內建分析；手機不需安裝或登入。資料為收盤日 K，非盤中即時報價。</p>
+<p class="sub" id="costState" role="status" aria-live="polite">持有成本可輸入小數；填入後自動更新成本損益。它不會取代真實收盤價。</p>
 <h2 id="stockIdentity" hidden aria-live="polite" style="font-size:26px;font-weight:800;margin:12px 0;overflow-wrap:anywhere"></h2>
 <div class="box" id="dataState" role="status" aria-live="polite">尚未取得行情。取得真實資料後才開放分析。</div>
 <div class="box"><h2>1～5 日機率預判與樣本外回測</h2><div class="bar"><select id="researchProvider" aria-label="研究資料來源"><option value="auto" selected>自動讀取外部行情（免安裝）</option><option value="twse">TWSE 官方完整資料（本機進階）</option><option value="yahoo">Yahoo 完整資料（本機進階）</option><option value="csv">完整 OHLCV CSV</option></select><button class="p" id="researchRun">進階：重新訓練與回測</button><button id="snapshotDownload" disabled>下載完整快照 JSON</button><button id="historyLoad">讀取歷史快照</button></div><details><summary>進階：匯入完整研究 CSV</summary><label for="researchCsv">研究 CSV：date,open,high,low,close,volume，至少 650 個交易日；成交量單位為股。</label><textarea id="researchCsv" placeholder="date,open,high,low,close,volume"></textarea></details><p id="researchStatus" role="status" aria-live="polite">收盤後產生訊號，次一交易日開盤進場。上漲機率為未扣成本的方向機率。</p><div id="researchResult"></div><div id="researchHistory"></div></div>
@@ -118,7 +119,7 @@ const h=20,proj=[];for(let i=1;i<=h;i++){const m=px*Math.exp(mu*i*.5),w=sd*Math.
 return{px,m20,m60,R,A,hist,sc,act,col,why,entry,stop,tgt,trim,proj,s20,s60,sd,lo,hi}}
 const cl={up:"var(--up)",dn:"var(--dn)",mut:"var(--mut)"};
 function render(sym,data,rk){
-const r=analyze(data,rk),cost=parseFloat($("cost").value);last={sym,r,data,rk};
+const r=analyze(data,rk),cost=$("cost").validity.valid?Number($("cost").value):NaN;last={sym,r,data,rk};
 let extra="";if(cost>0){const pl=(r.px/cost-1)*100;extra=`<div class="k"><b class="${pl>=0?"up":"dn"}">${pl>=0?"+":""}${pl.toFixed(1)}%</b><span>相對成本損益</span></div>`;
 if(pl>0&&r.sc<0)r.why.push("你目前有獲利而趨勢轉弱，可考慮分批獲利了結");if(pl<-8&&r.px<r.stop)r.why.push("已跌破停損價，建議檢視是否執行停損")}
 $("vd").innerHTML=`<div class="verdict"><div class="tag" style="background:${cl[r.col]}">${r.act}</div><div><b style="font-size:18px">${sym}　${r.px.toFixed(2)}</b><br><span class="sub">綜合評分 ${r.sc.toFixed(1)}（範圍約 -4 到 +4）</span></div></div>
@@ -153,7 +154,7 @@ function noData(message){
 }
 function run(){
  const s=$("sym").value.trim().toUpperCase()||"2330";
- if(!/^\d{4,6}(?:\.TW|\.TWO)?$/.test(s)){noData('請輸入台股代號');return}
+ if(!/^(?:\d{4,6}|\d{4,5}[A-Z])(?:\.TW|\.TWO)?$/.test(s)){noData('請輸入台股代號');return}
  if(!custom||custom.symbol!==s){noData('尚未取得這支股票的真實資料，請先更新行情。');return}
  render(s,custom,parseFloat($("rk").value));$("ai").disabled=false;$("cp").disabled=false;
 }
@@ -180,8 +181,8 @@ catch(e){$("out").textContent="呼叫失敗："+e.message}$("ai").disabled=false
 $("cp").onclick=()=>{if(!last)return;navigator.clipboard&&navigator.clipboard.writeText(prompt()).then(()=>{$("cp").textContent="已複製"},()=>{$("out").textContent=prompt()})};
 run();
 </script>
-<script src="browser-quotes.js?v=20261102-v051"></script>
-<script src="readable-ai.js?v=20261102-v051"></script>
-<script src="research-ui.js?v=20261102-v051"></script>
+<script src="browser-quotes.js?v=20261102-v052"></script>
+<script src="readable-ai.js?v=20261102-v052"></script>
+<script src="research-ui.js?v=20261102-v052"></script>
 </body>
 </html>

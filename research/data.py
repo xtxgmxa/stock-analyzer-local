@@ -34,8 +34,8 @@ def connect():
 
 
 def validate_symbol(symbol):
-    if not re.fullmatch(r'\d{4,6}(?:\.TW|\.TWO)?', symbol):
-        raise ValueError('僅接受台股 4～6 位代號，可附 .TW / .TWO')
+    if not re.fullmatch(r'(?:\d{4,6}|\d{4,5}[A-Z])(?:\.TW|\.TWO)?', symbol):
+        raise ValueError('僅接受台股／ETF 代號（如 2330、00985A），可附 .TW / .TWO')
     return symbol
 
 
