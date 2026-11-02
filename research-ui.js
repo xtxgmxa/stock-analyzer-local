@@ -38,16 +38,17 @@ async function loadRealQuote(publicOnly=false){
  finally{quoteBusy=false;$('go').disabled=false;$('live').disabled=false;$('researchRun').disabled=false}
 }
 const pct=x=>x==null?'—':(x*100).toFixed(1)+'%';
+const returnPct=x=>x==null?'—':(x*100).toFixed(2)+'%';
 const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function researchApi(payload){const r=await apiFetch('/api/research',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error||'研究失敗');return j.result}
 function readableSnapshot(s){
  const q=s.quality||{},c=s.context||{},inst=c.institutionalUsed,fmt=n=>n==null?'—':Number(n).toLocaleString('zh-TW',{maximumFractionDigits:2});
  const chips=inst?`<p>模型使用 ${esc(inst.date)} 法人資料（延後一個交易日）：外資（不含外資自營商） ${fmt(inst.foreign/1000)} 張、投信 ${fmt(inst.trust/1000)} 張、自營商 ${fmt(inst.dealer/1000)} 張。正數為買超，負數為賣超。</p>`:'<p>未連接法人歷史，不以零買賣超代替缺資料。</p>';
- const cards=s.horizons.map(h=>{const similar=h.similarSignals;return `<div class="box"><b>${h.days===1?'下一交易日':h.days+' 個交易日'}｜上漲機率 ${pct(h.upProbability)}</b><p>${h.action==='candidate'?'列入研究候選，仍須檢視風險':'先觀察，尚未通過全部條件'}</p>${similar?`<p class="sub">過去相近機率訊號 ${similar.n} 筆，實際上漲 ${pct(similar.actualUpFrequency)}；扣成本後平均 ${pct(similar.averageNetReturn)}。</p>`:''}<p class="note">${h.riskReasons.map(esc).join('、')}</p></div>`}).join('');
+ const cards=s.horizons.map(h=>{const similar=h.similarSignals;return `<div class="box"><b>${h.days===1?'下一交易日':h.days+' 個交易日'}｜上漲機率 ${pct(h.upProbability)}</b><p>${h.action==='candidate'?'列入研究候選，仍須檢視風險':'先觀察，尚未通過全部條件'}</p>${similar?`<p class="sub">過去相近機率訊號 ${similar.n} 筆，實際上漲 ${pct(similar.actualUpFrequency)}；扣成本後平均 ${returnPct(similar.averageNetReturn)}。</p>`:''}<details><summary>${h.action==='candidate'?'檢視風險':'為什麼先觀察？'}</summary><p class="note">${h.riskReasons.map(esc).join('、')}</p></details></div>`}).join('');
  const comparisons=s.horizons.filter(h=>h.comparison).map(h=>{const t=h.comparison.holdout,interval=t.blockBootstrap95,proven=interval[0]>0;return `<tr><td>${h.days} 日</td><td>${t.ohlcvBaseline.brier.toFixed(4)}</td><td>${t.probability.brier.toFixed(4)}</td><td>${proven?'這段測試有改善':t.pairedBrierImprovement>0?'略好，但差異尚不明確':'尚未優於價量基準'}</td></tr>`}).join('');
  const ledger=s.forwardLedger;
  const settled=ledger?ledger.byHorizon.reduce((n,h)=>n+h.settled,0):0;
- const forward=ledger?`<h3>每日預測對帳：真正往後驗證</h3><p>${settled?'已有到期預測，以下為當時保存、事後核對的結果。':'預測已保存，尚無到期樣本。先等未來行情發生，再顯示命中率。'}</p><div style="overflow:auto"><table style="width:100%;text-align:right"><thead><tr><th>期間</th><th>已保存</th><th>等待結果</th><th>已核對</th><th>方向命中率</th><th>扣成本平均報酬</th></tr></thead><tbody>${ledger.byHorizon.map(h=>`<tr><td>${h.days} 日</td><td>${h.issued}</td><td>${h.pending}</td><td>${h.settled}</td><td>${pct(h.accuracy)}</td><td>${pct(h.averageNetReturn)}</td></tr>`).join('')}</tbody></table></div><p class="sub">${esc(ledger.note)}</p>`:'<p>這是舊版快照，尚未建立前瞻對帳。請重新分析。</p>';
+ const forward=ledger?`<h3>每日預測對帳：真正往後驗證</h3><p>${settled?'已有到期預測，以下為當時保存、事後核對的結果。':'預測已保存，尚無到期樣本。先等未來行情發生，再顯示命中率。'}</p><div style="overflow:auto"><table style="width:100%;text-align:right"><thead><tr><th>期間</th><th>已保存</th><th>等待結果</th><th>已核對</th><th>方向命中率</th><th>扣成本平均報酬</th></tr></thead><tbody>${ledger.byHorizon.map(h=>`<tr><td>${h.days} 日</td><td>${h.issued}</td><td>${h.pending}</td><td>${h.settled}</td><td>${pct(h.accuracy)}</td><td>${returnPct(h.averageNetReturn)}</td></tr>`).join('')}</tbody></table></div><p class="sub">${esc(ledger.note)}</p>`:'<p>這是舊版快照，尚未建立前瞻對帳。請重新分析。</p>';
  const basket=s.validationBasket?`<details><summary>其他股票的資料檢查結果</summary><ul>${s.validationBasket.map(r=>`<li>${esc(r.symbol)}：${r.status==='passed'?'已完成相同流程驗證':esc(r.reason||'資料未通過，停止分析')}</li>`).join('')}</ul></details>`:'';
  return `<h3>資料與訊號檢查</h3><p><b>${q.status==='passed'?'官方交易日與企業行動查核通過':'僅完成基本行情檢查'}</b>｜資料截至 ${esc(s.asOf)} 收盤</p>${q.expectedSessions?`<p>核對 ${q.expectedSessions} 個交易日；缺少 ${(q.missingSessions||[]).length} 日；已核對 ${(q.corporateActions||[]).length} 筆除權息／拆股事件。</p>`:''}<p>${c.connected?`已加入大盤、相對強弱及法人；共 ${c.featureCount} 個訊號。大盤近 5 日漲跌 ${pct(s.features.market_return_5)}。`:'目前只使用個股價量訊號。'}</p>${chips}${c.connected?'<p class="sub">法人來源：FinMind 整理的交易所資料；現金股利未計入策略報酬。</p>':''}${basket}<div class="g">${cards}</div><p class="sub">「上漲機率」是股價方向，不是獲利保證。相近訊號為歷史樣本外統計，可能重疊；與下方真正前瞻成績分開。</p>${comparisons?`<h3>新增訊號有沒有比較準？</h3><p>固定用最後 63 筆歷史測試，和純價量模型比較。分數越小越好；小幅改善未必代表穩定優勢。</p><div style="overflow:auto"><table style="width:100%;text-align:right"><thead><tr><th>期間</th><th>純價量</th><th>加入大盤／法人</th><th>解讀</th></tr></thead><tbody>${comparisons}</tbody></table></div>`:''}${forward}`;
 }
@@ -75,7 +76,7 @@ $('connect').onclick=async()=>{
   $('connection').textContent=`已連線｜研究環境：${s.research?'已就緒':'請執行 setup.bat'}｜Codex：${s.accounts.codex.message}｜Cursor：${s.accounts.cursor.message}`;
   $('st').textContent='使用這台電腦的 CLI 登入狀態。僅安裝桌面 App 不一定已登入 CLI。';
   if(!last&&!quoteBusy)await loadRealQuote();
- }catch(e){srv=null;$('st').textContent='尚未連接自己的 AI 帳號，可先使用內建摘要。';$('connection').textContent='尚未連接本機服務。可以先閱讀網站發布的 2330 官方日 K；自行訓練、其他股票與個人 AI 帳號功能，請先執行 start.bat 再連線。';if(!last&&!quoteBusy)await loadRealQuote(true)}
+ }catch(e){srv=null;$('st').textContent='尚未連接自己的 AI 帳號，可先使用內建摘要。';$('connection').textContent='尚未連接本機服務。可以先閱讀已發布的多檔官方日 K 與模型結果；自行訓練、未發布的股票與個人 AI 帳號功能，請先執行 start.bat 再連線。';if(!last&&!quoteBusy)await loadRealQuote(true)}
  finally{clearTimeout(timer)}
 };
 $('researchRun').onclick=async()=>{
