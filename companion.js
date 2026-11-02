@@ -67,9 +67,15 @@ const server=http.createServer(async(req,res)=>{
   const u=new URL(req.url,'http://localhost');
   const assets={'/':'index.html','/index.html':'index.html','/research-ui.js':'research-ui.js','/readable-ai.js':'readable-ai.js'};
   if(assets[u.pathname]&&req.method==='GET')return send(res,200,fs.readFileSync(path.join(ROOT,assets[u.pathname]),'utf8'),u.pathname.endsWith('.js')?'application/javascript':'text/html');
+  const publicFeed=u.pathname.match(/^\/public-quotes\/(2330|2317|2454|1216|validation-summary)\.json$/);
+  if(publicFeed&&req.method==='GET'){
+   const file=path.join(ROOT,'public-quotes',publicFeed[1]+'.json');
+   if(!fs.existsSync(file))return send(res,404,{error:'尚無已發布資料'});
+   return send(res,200,JSON.parse(fs.readFileSync(file,'utf8')));
+  }
   if(u.pathname==='/api/status'&&req.method==='GET'){
    const [codex,cursor]=await Promise.all([auth('codex'),auth('cursor')]);
-   return send(res,200,{codex:codex.installed,cursor:cursor.installed,accounts:{codex,cursor},research:fs.existsSync(PYTHON),version:'0.3.0'});
+   return send(res,200,{codex:codex.installed,cursor:cursor.installed,accounts:{codex,cursor},research:fs.existsSync(PYTHON),version:'0.4.0'});
   }
   if(u.pathname==='/api/quote'&&req.method==='GET'){
    const s=(u.searchParams.get('symbol')||'').toUpperCase();if(!/^\d{4,6}(?:\.TW|\.TWO)?$/.test(s))return send(res,400,{error:'僅接受台股代號'});

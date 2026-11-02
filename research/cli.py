@@ -1,18 +1,35 @@
 """JSON over stdin/stdout worker; stdout is reserved for the protocol."""
 import json
 import sys
-from .data import connect, fetch_yahoo, fetch_twse, ingest_csv, save_dataset, load_dataset
+from .data import connect, fetch_yahoo, fetch_twse, ingest_csv, save_dataset, load_dataset,records
 from .engine import run
+from .context import collect_context
+from .ledger import report
 
 
 def dispatch(j):
     action = j.get('action', 'run')
+    if action == 'ledger':
+        return report(j.get('symbol'))
     if action == 'quote':
         provider = j.get('provider', 'twse')
         if provider not in ['twse', 'yahoo']:
             raise ValueError('僅允許真實網路行情來源')
         df, source = (fetch_twse if provider == 'twse' else fetch_yahoo)(j.get('symbol', '2330'))
-        return {'symbol': j.get('symbol', '2330'), 'source': source, 'asOf': str(df.date.iloc[-1].date()), 'bars': [{'d': str(r.date.date()), 'o': float(r.open), 'h': float(r.high), 'l': float(r.low), 'c': float(r.close), 'v': float(r.volume)} for r in df.itertuples()]}
+        quote={'symbol': j.get('symbol', '2330'), 'source': source, 'asOf': str(df.date.iloc[-1].date()), 'bars': [{'d': str(r.date.date()), 'o': float(r.open), 'h': float(r.high), 'l': float(r.low), 'c': float(r.close), 'v': float(r.volume)} for r in df.itertuples()]}
+        if provider=='twse':
+            with connect() as db:
+                candidates=db.execute('SELECT payload FROM runs ORDER BY created_at DESC LIMIT 30').fetchall()
+            for (raw,) in candidates:
+                s=json.loads(raw)
+                if s['symbol']==quote['symbol'] and s['asOf']==quote['asOf'] and s['version']=='0.4.0' and not s.get('synthetic'):
+                    stored=load_dataset(s['datasetId'])
+                    if stored['bars']==records(df):
+                        from .publish import public_analysis
+                        quote['analysis']=public_analysis(s)
+                        quote['analysis']['forwardLedger']=report(s['symbol'])
+                        break
+        return quote
     if action == 'history':
         with connect() as db:
             rows = db.execute('SELECT payload FROM runs ORDER BY created_at DESC').fetchall()
@@ -40,7 +57,8 @@ def dispatch(j):
         df, source = fetch_twse(symbol)
     else:
         raise ValueError('未知資料來源')
-    digest = save_dataset(symbol, source, df)
+    context=collect_context(symbol,df) if provider=='twse' else None
+    digest = save_dataset(symbol, source, df,metadata={'context':context,'split_events':df.attrs.get('split_events',[])})
     return run(digest)
 
 

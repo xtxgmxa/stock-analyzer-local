@@ -39,7 +39,7 @@ def validate_symbol(symbol):
     return symbol
 
 
-def validate(rows, now=None):
+def validate(rows, now=None, split_events=None):
     df = pd.DataFrame(rows).rename(columns={'d': 'date', 'o': 'open', 'h': 'high', 'l': 'low', 'c': 'close', 'v': 'volume'})
     cols = ['date', 'open', 'high', 'low', 'close', 'volume']
     if not set(cols).issubset(df):
@@ -63,8 +63,11 @@ def validate(rows, now=None):
     if (df.date.dt.day_of_week >= 5).any():
         raise ValueError('日 K 含週末；請提供交易日資料')
     # Fail closed on probable split/unit errors instead of learning a spurious crash.
-    if (df.close.pct_change().abs() > .35).any():
-        raise ValueError('單日跳動超過 35%，可能拆股／單位不一致；請先核對並提供一致口徑資料')
+    jumps=df.close.pct_change().abs()>.35
+    for i in df.index[jumps]:
+        matches=[e for e in (split_events or []) if e['date']==str(df.date.iloc[i].date()) and e.get('type')=='split']
+        if not matches or abs(float(df.close.iloc[i]/df.close.iloc[i-1])/matches[0]['factor']-1)>.15:
+            raise ValueError('單日跳動超過 35%，且無可核對的拆股資料；停止分析')
     if len(df) < 650:
         raise ValueError('至少需要 650 筆完整交易日 OHLCV（建議 5 年）')
     return df
@@ -76,10 +79,11 @@ def records(df):
     return out.to_dict('records')
 
 
-def save_dataset(symbol, source, df):
+def save_dataset(symbol, source, df, metadata=None):
     symbol = validate_symbol(symbol)
     rows = records(df)
-    payload = json.dumps({'symbol': symbol, 'source': source, 'bars': rows}, sort_keys=True, allow_nan=False)
+    payload = json.dumps({'symbol': symbol, 'source': source, 'bars': rows,
+        'metadata':metadata or {'split_events':df.attrs.get('split_events',[])}}, sort_keys=True, allow_nan=False)
     digest = hashlib.sha256(payload.encode()).hexdigest()
     with connect() as db:
         db.execute('INSERT OR IGNORE INTO datasets VALUES (?,?,?,?,?)', (digest, symbol, source, datetime.now(TZ).isoformat(), payload))
@@ -144,6 +148,8 @@ def parse_twse(raw):
     rows = []
     for r in raw.get('data', []):
         year, month, day = map(int, r[0].split('/'))
+        if any(str(v).strip() in ['--','---',''] for v in r[3:7]):
+            raise ValueError(f'{year+1911:04d}-{month:02d}-{day:02d} 無完整成交價，可能停牌或無成交；不補造 OHLC，暫停此股票分析')
         def number(i):
             return float(r[i].replace(',', ''))
         rows.append({'date': f'{year+1911:04d}-{month:02d}-{day:02d}', 'open': number(3),
@@ -188,7 +194,18 @@ def fetch_twse(symbol):
             continue
         rows.extend(parse_twse(raw))
     rows = [r for r in rows if r['date'] <= str(cutoff)]
-    return validate(rows), f'TWSE official STOCK_DAY {ticker}; raw OHLCV; volume shares; price return only'
+    try:
+        df=validate(rows)
+    except ValueError as exc:
+        if '35%' not in str(exc):raise
+        from .context import finmind
+        from fractions import Fraction
+        splits=[]
+        for r in finmind('TaiwanStockSplitPrice',ticker,rows[0]['date'],rows[-1]['date']):
+            ratio=float(Fraction(float(r['before_price'])/float(r['after_price'])).limit_denominator(100))
+            splits.append({'date':r['date'],'type':'split','factor':1/ratio,'shareRatio':ratio})
+        df=validate(rows,split_events=splits);df.attrs['split_events']=splits
+    return df, f'TWSE official STOCK_DAY {ticker}; raw OHLCV; volume shares; price return only'
 
 
 def demo():

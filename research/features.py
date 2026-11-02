@@ -28,9 +28,12 @@ def features(df):
     return f.replace([np.inf, -np.inf], np.nan)
 
 
-def targets(df, horizon, cost):
+def targets(df, horizon, cost, events=None):
     # Signal at close t; entry open t+1, exit close t+h. Includes both endpoint costs.
-    ret = df.close.shift(-horizon) / df.open.shift(-1) - 1
+    scale=pd.Series(1.,index=df.index)
+    for e in events or []:
+        if e.get('type')=='split':scale.loc[df.date.dt.strftime('%Y-%m-%d')>=e['date']]*=e['shareRatio']
+    ret = (df.close*scale).shift(-horizon) / (df.open*scale).shift(-1) - 1
     end = df.date.shift(-horizon)
     return pd.DataFrame({'return': ret, 'net_return': (1+ret)*(1-cost)-1,
         'label': ret.where(ret.isna(), (ret > 0).astype(float)), 'end': end})
