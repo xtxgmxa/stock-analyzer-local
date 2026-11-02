@@ -1,0 +1,4 @@
+{
+  "allowedOrigins": ["https://YOUR-ACCOUNT.github.io"],
+  "timeoutSec": 180
+}

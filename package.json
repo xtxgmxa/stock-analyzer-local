@@ -1,0 +1,7 @@
+{
+  "name": "tw-stock-probability-lab",
+  "version": "0.3.0",
+  "private": true,
+  "scripts": {"start": "node server.js", "test": "node --test tests/server.test.js tests/readable-ai.test.js"},
+  "engines": {"node": ">=20"}
+}
