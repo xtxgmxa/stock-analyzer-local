@@ -33,23 +33,36 @@ async function loadRealQuote(publicOnly=false){
   const age=(Date.now()-Date.parse(j.asOf+'T16:00:00+08:00'))/86400000;
   if(age>7)throw new Error('最新行情已超過 7 天，請核對停牌或來源更新');
   custom=j.bars;custom.symbol=symbol;srcName=j.source;run();showDataState();
+  if(j.analysis)showSnapshot(j.analysis);
  }catch(e){if(generation===dataGeneration)clearAnalysis('行情未取得，已停止分析：'+e.message)}
  finally{quoteBusy=false;$('go').disabled=false;$('live').disabled=false;$('researchRun').disabled=false}
 }
 const pct=x=>x==null?'—':(x*100).toFixed(1)+'%';
 const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function researchApi(payload){const r=await apiFetch('/api/research',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error||'研究失敗');return j.result}
+function readableSnapshot(s){
+ const q=s.quality||{},c=s.context||{},inst=c.institutionalUsed,fmt=n=>n==null?'—':Number(n).toLocaleString('zh-TW',{maximumFractionDigits:2});
+ const chips=inst?`<p>模型使用 ${esc(inst.date)} 法人資料（延後一個交易日）：外資（不含外資自營商） ${fmt(inst.foreign/1000)} 張、投信 ${fmt(inst.trust/1000)} 張、自營商 ${fmt(inst.dealer/1000)} 張。正數為買超，負數為賣超。</p>`:'<p>未連接法人歷史，不以零買賣超代替缺資料。</p>';
+ const cards=s.horizons.map(h=>{const similar=h.similarSignals;return `<div class="box"><b>${h.days===1?'下一交易日':h.days+' 個交易日'}｜上漲機率 ${pct(h.upProbability)}</b><p>${h.action==='candidate'?'列入研究候選，仍須檢視風險':'先觀察，尚未通過全部條件'}</p>${similar?`<p class="sub">過去相近機率訊號 ${similar.n} 筆，實際上漲 ${pct(similar.actualUpFrequency)}；扣成本後平均 ${pct(similar.averageNetReturn)}。</p>`:''}<p class="note">${h.riskReasons.map(esc).join('、')}</p></div>`}).join('');
+ const comparisons=s.horizons.filter(h=>h.comparison).map(h=>{const t=h.comparison.holdout,interval=t.blockBootstrap95,proven=interval[0]>0;return `<tr><td>${h.days} 日</td><td>${t.ohlcvBaseline.brier.toFixed(4)}</td><td>${t.probability.brier.toFixed(4)}</td><td>${proven?'這段測試有改善':t.pairedBrierImprovement>0?'略好，但差異尚不明確':'尚未優於價量基準'}</td></tr>`}).join('');
+ const ledger=s.forwardLedger;
+ const settled=ledger?ledger.byHorizon.reduce((n,h)=>n+h.settled,0):0;
+ const forward=ledger?`<h3>每日預測對帳：真正往後驗證</h3><p>${settled?'已有到期預測，以下為當時保存、事後核對的結果。':'預測已保存，尚無到期樣本。先等未來行情發生，再顯示命中率。'}</p><div style="overflow:auto"><table style="width:100%;text-align:right"><thead><tr><th>期間</th><th>已保存</th><th>等待結果</th><th>已核對</th><th>方向命中率</th><th>扣成本平均報酬</th></tr></thead><tbody>${ledger.byHorizon.map(h=>`<tr><td>${h.days} 日</td><td>${h.issued}</td><td>${h.pending}</td><td>${h.settled}</td><td>${pct(h.accuracy)}</td><td>${pct(h.averageNetReturn)}</td></tr>`).join('')}</tbody></table></div><p class="sub">${esc(ledger.note)}</p>`:'<p>這是舊版快照，尚未建立前瞻對帳。請重新分析。</p>';
+ const basket=s.validationBasket?`<details><summary>其他股票的資料檢查結果</summary><ul>${s.validationBasket.map(r=>`<li>${esc(r.symbol)}：${r.status==='passed'?'已完成相同流程驗證':esc(r.reason||'資料未通過，停止分析')}</li>`).join('')}</ul></details>`:'';
+ return `<h3>資料與訊號檢查</h3><p><b>${q.status==='passed'?'官方交易日與企業行動查核通過':'僅完成基本行情檢查'}</b>｜資料截至 ${esc(s.asOf)} 收盤</p>${q.expectedSessions?`<p>核對 ${q.expectedSessions} 個交易日；缺少 ${(q.missingSessions||[]).length} 日；已核對 ${(q.corporateActions||[]).length} 筆除權息／拆股事件。</p>`:''}<p>${c.connected?`已加入大盤、相對強弱及法人；共 ${c.featureCount} 個訊號。大盤近 5 日漲跌 ${pct(s.features.market_return_5)}。`:'目前只使用個股價量訊號。'}</p>${chips}${c.connected?'<p class="sub">法人來源：FinMind 整理的交易所資料；現金股利未計入策略報酬。</p>':''}${basket}<div class="g">${cards}</div><p class="sub">「上漲機率」是股價方向，不是獲利保證。相近訊號為歷史樣本外統計，可能重疊；與下方真正前瞻成績分開。</p>${comparisons?`<h3>新增訊號有沒有比較準？</h3><p>固定用最後 63 筆歷史測試，和純價量模型比較。分數越小越好；小幅改善未必代表穩定優勢。</p><div style="overflow:auto"><table style="width:100%;text-align:right"><thead><tr><th>期間</th><th>純價量</th><th>加入大盤／法人</th><th>解讀</th></tr></thead><tbody>${comparisons}</tbody></table></div>`:''}${forward}`;
+}
 function showSnapshot(s){
  if(s.synthetic)throw new Error('正式介面不使用模擬資料');
- snapshot=s;$('snapshotDownload').disabled=false;
+ snapshot=s;$('snapshotDownload').disabled=false;$('snapshotDownload').textContent=s.publicSummary?'下載公開分析摘要':'下載完整快照 JSON';
  if(s.recentBars){custom=s.recentBars;custom.symbol=s.symbol;srcName=s.source;$('sym').value=s.symbol;run();showDataState()}
  const format=x=>Number(x).toFixed(3);
- $('researchResult').innerHTML=`<p><b>${esc(s.symbol)}｜截至 ${esc(s.asOf)}｜${s.synthetic?'示範資料（非真實行情）':'歷史行情研究'}</b></p><p class="sub">${esc(s.source)}<br>方向定義：次日開盤 → 第 h 日收盤，未扣成本。機率校正不保證有效。</p>
+ const technical=`<p><b>${esc(s.symbol)}｜截至 ${esc(s.asOf)}｜歷史行情研究</b></p><p class="sub">${esc(s.source)}<br>方向定義：次日開盤 → 第 h 日收盤，未扣成本。機率校正不保證有效。</p>
  <div style="overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr><th>交易日</th><th>上漲機率</th><th>狀態</th><th>OOS 筆數</th><th>校正 Brier↓</th><th>原始 Brier↓</th><th>基準 Brier↓</th><th>策略報酬</th><th>最大回撤</th></tr></thead><tbody>${s.horizons.map(h=>`<tr><td>${h.days} 日</td><td>${pct(h.upProbability)}</td><td>${h.action==='candidate'?'候選':'觀察'}</td><td>${h.evaluation.probability.n}</td><td>${format(h.evaluation.probability.brier)}</td><td>${format(h.evaluation.rawEnsemble.brier)}</td><td>${format(h.evaluation.prior.brier)}</td><td>${pct(h.strategy.totalReturn)}</td><td>${pct(h.strategy.maxDrawdown)}</td></tr>`).join('')}</tbody></table></div>
  <p>規則分數 ${s.rule.score}｜ATR14 ${format(s.risk.atr14)}｜參考停損 ${format(s.risk.referenceStop)}｜倉位上限 ${pct(s.risk.maxPosition)}</p>
  <p class="note">${s.horizons.map(h=>`${h.days} 日：${h.riskReasons.length?h.riskReasons.map(esc).join('、'):'符合預設條件，仍須人工檢視'}`).join('<br>')}</p>
  <details><summary>回測方法與限制</summary><p>擴展式 Walk-Forward；252 日起始訓練、100 日校正、63 日測試；兩處均留 5 日間隔。每期重新訓練 LightGBM／XGBoost，等權集成後用獨立時段做 sigmoid 校正。每個持有期獨立回測，不可相加為組合績效。</p><p>策略：次日開盤、單一持倉、不重疊、2 ATR 停損、最多 20% 倉位、1% 風險預算。買賣手續費各 0.1425%、賣出稅 0.3%、單邊滑價 0.1%。每日收盤估值。</p><ul>${s.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul></details>
  <p class="sub">快照 ${esc(s.runId.slice(0,16))}｜資料版本 ${esc(s.datasetId.slice(0,16))}｜模型 ${esc(s.version)}</p>`;
+ $('researchResult').innerHTML=readableSnapshot(s)+'<details><summary>進階：完整回測指標與方法</summary>'+technical+'</details>';
  $('researchStatus').textContent='完成。完整快照含每折時間邊界、樣本外預測、兩模型指標、規則策略與逐日資產曲線。';
 }
 $('bridge').value=localStorage.getItem('stockBridge')||'http://localhost:5177';
@@ -80,7 +93,7 @@ $('historyLoad').onclick=async()=>{try{const h=await researchApi({action:'histor
 const legacyPrompt=prompt;
 prompt=function(){if(!snapshot)return legacyPrompt();return '你是股票研究助理，只解讀以下資料，不執行工具、不讀檔、不修改電腦。機率是統計模型輸出，勿改寫或保證報酬。指出校正前後 Brier、基準比較與失效風險，不提供保證式買賣指令。以繁體中文回答。資料：'+JSON.stringify({symbol:snapshot.symbol,asOf:snapshot.asOf,source:snapshot.source,synthetic:snapshot.synthetic,rule:snapshot.rule,risk:snapshot.risk,warnings:snapshot.warnings,horizons:snapshot.horizons.map(h=>({days:h.days,probability:h.upProbability,riskReasons:h.riskReasons,calibratedBrier:h.evaluation.probability.brier,rawBrier:h.evaluation.rawEnsemble.brier,priorBrier:h.evaluation.prior.brier}))})};
 const snapshotPrompt=prompt;
-prompt=function(){return snapshotPrompt()+'\n以下為同一來源實際載入的最近 60 個交易日 OHLCV（d 日期、o 開盤、h 最高、l 最低、c 收盤、v 成交股數；不含新聞或盤中五檔）：'+JSON.stringify(last.data.slice(-60))+'\n請以一般人看得懂的繁體中文，回傳 JSON：{"action":"目前判斷","summary":"白話摘要","entry":null,"stop":null,"target":null,"trim":null,"risks":["主要風險"]}。只能使用輸入中提供的價格，沒有的項目填 null，不得自行估造。'};
+prompt=function(){return snapshotPrompt()+'\n大盤／法人與歷史相近訊號（無資料即 null，不得自行補造）：'+JSON.stringify(snapshot?{context:snapshot.context,similar:snapshot.horizons.map(h=>({days:h.days,similar:h.similarSignals})),forward:snapshot.forwardLedger?.byHorizon}:null)+'\n以下為同一來源實際載入的最近 60 個交易日 OHLCV（d 日期、o 開盤、h 最高、l 最低、c 收盤、v 成交股數；不含新聞或盤中五檔）：'+JSON.stringify(last.data.slice(-60))+'\n請以一般人看得懂的繁體中文，回傳 JSON：{"action":"目前判斷","summary":"白話摘要","entry":null,"stop":null,"target":null,"trim":null,"risks":["主要風險"]}。只能使用輸入中提供的價格，沒有的項目填 null，不得自行估造。'};
 $('ai').onclick=async()=>{
  if(!last){$('aiCards').textContent='請先取得真實行情，再進行分析。';return}
  const generation=dataGeneration,provider=$('pv').value;

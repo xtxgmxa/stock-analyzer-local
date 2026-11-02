@@ -36,11 +36,11 @@ pre{white-space:pre-wrap;word-break:break-word;font-size:12px;background:var(--b
 <body>
 <main>
 <h1>走勢研判台</h1>
-<p class="sub">台股 1～5 日多訊號機率研究｜LightGBM + XGBoost｜紅漲綠跌</p>
+<p class="sub">台股 1～5 日機率研究｜真實行情・大盤法人・每日預測對帳</p>
 <div class="box"><h2>連接自己的電腦</h2><p class="sub">先執行 setup.bat，再執行 start.bat。本機服務使用你已登入的 CLI 帳號；網站不接收登入憑證。</p><div class="bar"><input id="bridge" aria-label="本機服務網址" value="http://localhost:5177" style="flex:1"><button id="connect">偵測連線與帳號</button></div><p id="connection" role="status" aria-live="polite">尚未連線</p></div>
 <div class="bar">
 <input id="sym" value="2330" aria-label="股票代號" size="8" list="pre">
-<datalist id="pre"><option value="2330"><option value="0050"><option value="2317"><option value="6488"></datalist>
+<datalist id="pre"><option value="2330"><option value="0050"><option value="2317"><option value="2454"><option value="1216"><option value="6488"></datalist>
 <select id="rk" aria-label="風險偏好"><option value="1">保守</option><option value="1.5" selected>穩健</option><option value="2.2">積極</option></select>
 <input id="cost" type="number" placeholder="持有成本（選填）" aria-label="持有成本" style="width:150px">
 <button class="p" id="go">更新行情並分析</button>
@@ -176,7 +176,7 @@ catch(e){$("out").textContent="呼叫失敗："+e.message}$("ai").disabled=false
 $("cp").onclick=()=>{if(!last)return;navigator.clipboard&&navigator.clipboard.writeText(prompt()).then(()=>{$("cp").textContent="已複製"},()=>{$("out").textContent=prompt()})};
 run();
 </script>
-<script src="readable-ai.js?v=20261102-real2"></script>
-<script src="research-ui.js?v=20261102-real2"></script>
+<script src="readable-ai.js?v=20261102-v04"></script>
+<script src="research-ui.js?v=20261102-v04"></script>
 </body>
 </html>
