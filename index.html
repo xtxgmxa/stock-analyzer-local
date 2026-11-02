@@ -176,7 +176,7 @@ catch(e){$("out").textContent="呼叫失敗："+e.message}$("ai").disabled=false
 $("cp").onclick=()=>{if(!last)return;navigator.clipboard&&navigator.clipboard.writeText(prompt()).then(()=>{$("cp").textContent="已複製"},()=>{$("out").textContent=prompt()})};
 run();
 </script>
-<script src="readable-ai.js"></script>
-<script src="research-ui.js"></script>
+<script src="readable-ai.js?v=20261102-real2"></script>
+<script src="research-ui.js?v=20261102-real2"></script>
 </body>
 </html>
