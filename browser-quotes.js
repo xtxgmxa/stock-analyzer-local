@@ -2,6 +2,23 @@
 (function(root){
  const API='https://api.finmindtrade.com/api/v4/data';
  const cache=new Map();
+ let namesPromise=null;
+ async function stockName(value){
+  const symbol=normalizedSymbol(value);
+  if(!namesPromise)namesPromise=(async()=>{
+   const response=await root.fetch(API+'?dataset=TaiwanStockInfo',{mode:'cors',credentials:'omit',signal:AbortSignal.timeout(8000)});
+   if(!response.ok)throw new Error('股票名稱來源無法讀取');
+   const json=await response.json();
+   if(json.status!==200||!Array.isArray(json.data))throw new Error('股票名稱資料不完整');
+   const names=new Map();
+   for(const row of json.data){
+    const id=String(row.stock_id),name=String(row.stock_name||'').trim(),date=String(row.date||'');
+    if(/^\d{4,6}$/.test(id)&&name&&(!names.has(id)||date>names.get(id).date))names.set(id,{name,date});
+   }
+   return names;
+  })().catch(error=>{namesPromise=null;throw error});
+  return (await namesPromise).get(symbol)?.name||null;
+ }
  function normalizedSymbol(value){
   const symbol=String(value).trim().toUpperCase().replace(/\.(TW|TWO)$/,'');
   if(!/^\d{4,6}$/.test(symbol))throw new Error('請輸入 4～6 位台股代號，例如 2330 或 2317');
@@ -65,6 +82,6 @@
   }catch(e){if(controller.signal.aborted)throw new Error('行情讀取已取消或逾時，請重新查詢');throw e}
   finally{clearTimeout(timer);signal?.removeEventListener('abort',abort)}
  }
- const api={load,validateResponse,normalizedSymbol,dates,sameBars};
+ const api={load,validateResponse,normalizedSymbol,dates,sameBars,stockName};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.BrowserQuotes=api;
 })(typeof window!=='undefined'?window:globalThis);
